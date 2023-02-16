@@ -52,7 +52,7 @@ async def _get_or_create_voice_client(ctx):
     name="join",
     guild_ids=guild_ids,
 )
-async def join_vc(ctx: nextcord.Interaction):
+async def join_vc(ctx: nextcord.Interaction):  #для присоединения к каналу
     voice_client = await _get_or_create_voice_client(ctx)
     if voice_client is None:
         await ctx.response.send_message(
@@ -74,7 +74,7 @@ async def join_vc(ctx: nextcord.Interaction):
 
 
 @bot.slash_command(name="kick", guild_ids=guild_ids)
-async def kick_vc(ctx: nextcord.Interaction):
+async def kick_vc(ctx: nextcord.Interaction): #для отключения от канала
     if ctx.guild.id in guild_to_voice_client:
         voice_client = guild_to_voice_client.pop(ctx.guild.id)
         await voice_client.disconnect()
@@ -88,50 +88,47 @@ async def kick_vc(ctx: nextcord.Interaction):
     name="ask",
     guild_ids=guild_ids,
 )
-async def speak_vc(
+async def speak_vc(     #получения зпроса, отправка в ChatGPT, и озвучивание
     ctx: nextcord.Interaction,
     msg: str = SlashOption(
         name="msg", description="Рrompt for voiceGPT", required=True
-    ),  
-    lang: str = SlashOption(
-        name="lang", description="Voice to use for synthetic speech", required=False
     ),
 ):
     voice_client = await _get_or_create_voice_client(ctx)
     if voice_client:
         config.read('gptTemp.ini')
         await asyncio.sleep(0.5)
-        config['chatGPT']['allow'] = 'yes'
-        config['chatGPT']['ask'] = msg
+        config['chatGPT']['allow'] = 'yes' #разрешить ChatGPT обработать запрос
+        config['chatGPT']['ask'] = msg     #сообщение для ChatGPT
         with open('gptTemp.ini', 'w') as configfile:    # save
                 config.write(configfile)
 
         botMsg = await ctx.response.send_message("Processing...",)
 
         config.read('gptTemp.ini')
-        while config["chatGPT"]["allow"] == 'yes':
+        while config["chatGPT"]["allow"] == 'yes': #проигрывать звук пока идёт обработка
             if not voice_client.is_playing():
-                source = await nextcord.FFmpegOpusAudio.from_probe("elevator.mp3", method="fallback")
+                source = await nextcord.FFmpegOpusAudio.from_probe("loading.mp3", method="fallback")
                 voice_client.play(source, after=None)
                 await asyncio.sleep(0.5)
-                config.read('gptTemp.ini')
+                config.read('gptTemp.ini') #обновление конфига
 
         voice_client.stop()
-        response = config.get("chatGPT", "response")
+        response = config.get("chatGPT", "response") #ответ ChatGpt
 
-        await botMsg.edit(content="", embed=nextcord.Embed(title=f'{ctx.user}: {msg}', description= f"**VoiceGPT**: {response}"))
+        await botMsg.edit(content="", embed=nextcord.Embed(title=f'{ctx.user}: {msg}', description= f"**VoiceGPT**: {response}")) #изменить сообщение в дс
 
-        synthesizeAudio.synthesize(
+        synthesizeAudio.synthesize(         #сгенерировать голос
         'out.mp3', text=response,
-        voice=config["chatGPT"]["voice"], format='oggopus', sampleRateHertz='16000'
+        voice=config["chatGPT"]["voice"], format='oggopus', sampleRateHertz='16000' #голос меняется в конфиге (https://cloud.yandex.ru/docs/speechkit/tts/voices)
         )
         
         source = await nextcord.FFmpegOpusAudio.from_probe("out.mp3", method="fallback")
-        voice_client.play(source, after=None)
+        voice_client.play(source, after=None)       #воспроизвести голос
         while voice_client.is_playing():
             await asyncio.sleep(0.5)
         
-    else:
+    else: # проверка находится ли user в гс канале
         await ctx.response.send_message(
             "You're not in a voice channel. Join a voice channel to invite the bot!",
             ephemeral=True,
@@ -141,13 +138,13 @@ async def speak_vc(
     name="retry",
     guild_ids=guild_ids,
 )
-async def retry(ctx: nextcord.Interaction):
+async def retry(ctx: nextcord.Interaction):  #повтор ответа от ChatGpt
     voice_client = await _get_or_create_voice_client(ctx)
     if voice_client:
         config.read('gptTemp.ini')
         response = config.get("chatGPT", "response")
         await ctx.response.send_message(f"last response: ",embed=nextcord.Embed(description=response))
-        source = await nextcord.FFmpegOpusAudio.from_probe("out.mp3", method="fallback")
+        source = await nextcord.FFmpegOpusAudio.from_probe("out.mp3", method="fallback") #проигрывание прошлого запроса
         voice_client.play(source, after=None)
         while voice_client.is_playing():
             await asyncio.sleep(0.5)
@@ -156,16 +153,16 @@ async def retry(ctx: nextcord.Interaction):
 # Do the same thing for /vc-kick and the rest of the commands...
 
 # Run the bot
-DISCORD_TOKEN = "MTA3NDcyODY2MTA0OTE2Mzg0Nw.Gq80bX.oDrU6HljBo4q96K0_GlEVDenH0qxQU6BcqkQqw"
+DISCORD_TOKEN = "<token>" #токен бота (https://discord.com/developers/applications/)
 
-def gptMain():
+def gptMain(): #получение данных от ChatGPT в отдельном потоке
     gpt = ChatGPT()
     while True:
         try:
-            config.read('gptTemp.ini')
+            config.read('gptTemp.ini') #загрузка конфига
             sleep(0.15)
             if config["chatGPT"]["allow"] == 'yes':
-                config["chatGPT"]["response"] = gpt.ask(config.get("chatGPT", "ask"))
+                config["chatGPT"]["response"] = gpt.ask(config.get("chatGPT", "ask")) # запрос к ChatGPT
                 config['chatGPT']['allow'] = 'no'
                 with open('gptTemp.ini', 'w') as configfile:    # save
                     config.write(configfile)
@@ -176,10 +173,10 @@ if __name__ == "__main__":
     
     loop = asyncio.get_event_loop()
     try:
-        tread1 = Thread(target=gptMain)
+        tread1 = Thread(target=gptMain) # запуск потока
         tread1.start()
         print('started tread')
-        loop.run_until_complete(bot.start(DISCORD_TOKEN))
+        loop.run_until_complete(bot.start(DISCORD_TOKEN)) # запуск бота
     except KeyboardInterrupt:
         loop.run_until_complete(bot.close())
     finally:
