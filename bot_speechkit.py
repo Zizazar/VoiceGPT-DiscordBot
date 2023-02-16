@@ -21,8 +21,8 @@ from speechkit import Session, SpeechSynthesis
 DEV_GUILD_ID = 856999207583612938 # Replace with your guild ID
 guild_ids = [DEV_GUILD_ID]
 
-Api_key = 'AQVNwjFeIWw4L8fwEw6fQnO7VnwdMqEoLkypAiF2'
-catalog_id = "b1gusjpi7emlj9269l8u"
+Api_key = '' #api ключ яндекса
+catalog_id = ""
 
 bot = commands.Bot()
 config = configparser.ConfigParser()
